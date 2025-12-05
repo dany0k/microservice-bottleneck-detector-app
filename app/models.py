@@ -1,51 +1,46 @@
 from dataclasses import dataclass, field
-import statistics
+from collections import deque
+from typing import Literal
 
 
+#  Метрики узла (сервиса)
 @dataclass
 class NodeMetrics:
     name: str
     total_calls: int = 0
-    latencies: list = field(default_factory=list)
+    total_latency: float = 0.0
+    avg_latency: float = 0.0
+    status: Literal["ok", "warning", "critical"] = "ok"
 
-    @property
-    def avg_latency(self):
-        return statistics.mean(self.latencies) if self.latencies else 0
+    def update(self, latency_ms: float) -> None:
+        self.total_calls += 1
+        self.total_latency += latency_ms
+        self.avg_latency = self.total_latency / self.total_calls
 
-    @property
-    def status(self):
-        """Логика статуса узла на основе среднего latency."""
-        avg = self.avg_latency
-        if avg > 150:
-            return "critical"
-        elif avg > 80:
-            return "warning"
-        return "normal"
-
-    def add_latency(self, val: float):
-        self.latencies.append(val)
-        if len(self.latencies) > 100:
-            self.latencies.pop(0)
+    def mark_touched(self) -> None:
+        if self.total_calls == 0:
+            self.total_calls = 1
+            self.avg_latency = 0.0
 
 
+#  Метрики ребра (вызова)
 @dataclass
 class EdgeMetrics:
-    latencies: list = field(default_factory=list)
-    last_latency: float = 0
+    last_latency: float = 0.0
+    total_latency: float = 0.0
+    count: int = 0
+    avg_latency: float = 0.0
+    history: deque = field(default_factory=lambda: deque(maxlen=20))
 
     @property
-    def avg_latency(self):
-        return statistics.mean(self.latencies) if self.latencies else 0
+    def trend(self) -> float:
+        if len(self.history) < 2:
+            return 0.0
+        return (self.history[-1] - self.history[0]) / (len(self.history) - 1)
 
-    @property
-    def trend(self):
-        """Возвращает изменение latency относительно последних значений."""
-        if len(self.latencies) < 3:
-            return 0
-        return self.latencies[-1] - self.latencies[-3]
-
-    def update(self, latency: float):
-        self.last_latency = latency
-        self.latencies.append(latency)
-        if len(self.latencies) > 100:
-            self.latencies.pop(0)
+    def update(self, latency_ms: float):
+        self.last_latency = latency_ms
+        self.total_latency += latency_ms
+        self.count += 1
+        self.avg_latency = self.total_latency / self.count
+        self.history.append(latency_ms)

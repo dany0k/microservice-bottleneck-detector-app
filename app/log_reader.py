@@ -1,50 +1,59 @@
-import csv
 import time
-from typing import IO
-from .graph_state import GraphState
 from .alert_engine import AlertEngine
-
 
 class LogReader:
     """
-    Читает live_logs.csv по кругу и "проигрывает" его как поток логов.
-    Формат строки:
-    timestamp, src_service, src_endpoint, dst_service, dst_endpoint, latency_ms
+    Читает файл логов циклически.
+    SIMULATION_INTERVAL — задержка между логами.
     """
 
-    def __init__(
-        self,
-        graph_state: GraphState,
-        alert_engine: AlertEngine,
-        log_file: str,
-        interval: float,
-    ) -> None:
-        self.graph_state = graph_state
-        self.alert_engine = alert_engine
+    def __init__(self, graph_state, alert_engine: AlertEngine, log_file: str, interval: float):
+        self._gs = graph_state
+        self._ae = alert_engine
         self.log_file = log_file
         self.interval = interval
 
-    def _iter_logs(self):
-        while True:
-            with open(self.log_file, "r", encoding="utf-8") as f:
-                reader = csv.reader(f)
-                for row in reader:
-                    if not row or len(row) < 6:
-                        continue
-                    # timestamp = row[0]
-                    src_service = row[1].strip()
-                    # src_endpoint = row[2].strip()
-                    dst_service = row[3].strip()
-                    # dst_endpoint = row[4].strip()
-                    try:
-                        latency_ms = float(row[5])
-                    except ValueError:
-                        continue
-                    yield src_service, dst_service, latency_ms
-            # по окончании файла начинаем заново
+    # --------------------------------------
 
-    def run_blocking(self) -> None:
-        for src, dst, latency_ms in self._iter_logs():
-            self.graph_state.update_from_log(src, dst, latency_ms)
-            self.alert_engine.process_observation(src, dst, latency_ms)
-            time.sleep(self.interval)
+    def parse_line(self, line: str):
+        """
+        Формат строки:
+        timestamp,src,src_route,dst,dst_route,latency
+        """
+        try:
+            _, src, _, dst, _, latency = line.strip().split(",")
+            return src, dst, float(latency)
+        except Exception:
+            return None
+
+    # --------------------------------------
+
+    def run_blocking(self):
+        """Бесконечное чтение файла + возврат в начало."""
+        while True:
+            with open(self.log_file, "r") as f:
+                while True:
+                    line = f.readline()
+
+                    if not line or line.strip() == "":
+                        f.seek(0)
+                        continue
+
+                    parsed = self.parse_line(line)
+                    if not parsed:
+                        continue
+
+                    src, dst, latency = parsed
+
+                    # обновляем граф
+                    self._gs.update_from_log(src, dst, latency)
+
+                    # записываем лог в очередь для UI
+                    self._gs.recent_logs.append(f"{src} → {dst}  {latency} ms")
+                    if len(self._gs.recent_logs) > 100:
+                        self._gs.recent_logs.pop(0)
+
+                    # анализ для определения деградаций
+                    self._ae.handle_log(src, dst)
+
+                    time.sleep(self.interval)

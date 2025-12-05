@@ -13,18 +13,10 @@ def api_graph():
     gs = current_app.graph_state
     return jsonify(gs.export())
 
-
 @bp.route("/api/logs")
 def api_logs():
     gs = current_app.graph_state
-    return jsonify({"logs": gs.recent_logs})
-
-
-@bp.route("/api/alerts")
-def api_alerts():
-    ae = current_app.alert_engine
-    return jsonify({"alerts": ae.get_alerts()})
-
+    return jsonify({"logs": list(gs.recent_logs)})
 
 @bp.route("/api/stats")
 def api_stats():

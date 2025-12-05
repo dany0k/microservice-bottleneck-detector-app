@@ -1,69 +1,61 @@
-from typing import List, Dict, Any, Tuple
-from .graph_state import GraphState
-
-
 class AlertEngine:
-    """
-    Простейший механизм алертинга:
-    - WARNING: латентность растёт (+ тренд) и выше средней
-    - CRITICAL: латентность сильно выше средней и тренд положительный
-    """
 
-    def __init__(self, graph_state: GraphState) -> None:
-        self.graph_state = graph_state
-        self.alerts: List[Dict[str, Any]] = []
-        self.max_alerts = 50
+    WARN_LATENCY = 80
+    CRIT_LATENCY = 150
 
-    def _push_alert(self, severity: str, title: str, message: str, route: str) -> None:
-        alert = {
-            "type": severity,  # "critical" | "warning" | "info"
-            "title": title,
-            "message": message,
-            "route": route,
-            "meta": "Just now",
-        }
-        self.alerts.insert(0, alert)
-        if len(self.alerts) > self.max_alerts:
-            self.alerts = self.alerts[: self.max_alerts]
+    WARN_TREND = 2.0
+    CRIT_TREND = 5.0
 
-    def process_observation(self, src: str, dst: str, latency_ms: float) -> None:
-        key: Tuple[str, str] = (src, dst)
-        edge = self.graph_state.edges.get(key)
-        if not edge or len(edge.latencies) < 6:
-            # мало данных – ничего не делаем
-            return
+    def __init__(self, graph_state):
+        self._gs = graph_state
+        self._alerts = []
 
-        avg = edge.avg_latency
-        trend = edge.trend
-        route = f"{src} → {dst}"
+    def get_alerts(self):
+        return list(self._alerts)
 
-        # WARNING
-        if latency_ms > avg * 1.2 and trend > 1:
-            self._push_alert(
-                "warning",
-                f"Latency creeping on {dst}",
-                f"Latency {latency_ms:.1f}ms (avg {avg:.1f}ms, trend +{trend:.1f}ms)",
-                route,
-            )
+    def process_edge(self, src: str, dst: str, edge):
 
-        # CRITICAL
-        if latency_ms > avg * 1.5 and trend > 3:
-            self._push_alert(
-                "critical",
-                f"Rapid degradation on {dst}",
-                f"Latency {latency_ms:.1f}ms (avg {avg:.1f}ms, trend +{trend:.1f}ms)",
-                route,
-            )
+        status = "ok"
+        level = None
 
-    def get_alerts(self) -> List[Dict[str, Any]]:
-        return self.alerts
+        if edge.avg_latency >= self.CRIT_LATENCY:
+            status = "critical"
+            level = "critical"
+        elif edge.avg_latency >= self.WARN_LATENCY:
+            status = "warning"
+            level = "warning"
 
-    def overall_status(self) -> str:
-        """Возвращает общий статус системы для дашборда."""
-        for a in self.alerts:
-            if a["type"] == "critical":
-                return "critical"
-        for a in self.alerts:
-            if a["type"] == "warning":
-                return "warning"
-        return "normal"
+        if edge.trend >= self.CRIT_TREND:
+            status = "critical"
+            level = "critical"
+        elif edge.trend >= self.WARN_TREND and status != "critical":
+            status = "warning"
+            level = "warning"
+
+        if level:
+            self._gs.nodes[src].status = status
+            self._gs.nodes[dst].status = status
+
+            self._alerts.append({
+                "type": level,
+                "title": f"Latency {status}",
+                "message": f"{src} → {dst} avg={edge.avg_latency:.1f}, trend={edge.trend:+.1f}",
+                "route": f"{src}/{dst}",
+                "meta": ""
+            })
+
+    # --------------------------------------
+
+    def handle_log(self, src: str, dst: str):
+        edge = self._gs.edges.get((src, dst))
+        if edge:
+            self.process_edge(src, dst, edge)
+
+    # --------------------------------------
+
+    def overall_status(self):
+        if any(n.status == "critical" for n in self._gs.nodes.values()):
+            return "critical"
+        if any(n.status == "warning" for n in self._gs.nodes.values()):
+            return "warning"
+        return "ok"
