@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ServiceFlow Analyzer</title>
+
+    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="/static/dashboard.css">
+</head>
+
+<body class="sfa-body">
+<div class="sfa-root">
+
+    <!-- HEADER -->
+    <header class="sfa-header">
+        <div class="sfa-header-left">
+            <div class="sfa-logo">SF</div>
+            <div class="sfa-title-block">
+                <div class="sfa-title">ServiceFlow Analyzer</div>
+                <div class="sfa-subtitle">
+                    Master Thesis Prototype: Microservice Bottleneck Detection
+                </div>
+            </div>
+        </div>
+
+        <div class="sfa-header-right">
+            <button class="sfa-btn sfa-btn-play" id="btn-play">▶</button>
+            <button class="sfa-btn" id="btn-pause">⏸</button>
+            <button class="sfa-btn" id="btn-reset">⟲</button>
+
+            <div class="sfa-slider-block">
+                <span>Speed</span>
+                <input type="range" min="1" max="5" value="3" id="sim-speed">
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN -->
+    <main class="sfa-main">
+
+        <!-- LEFT PANEL -->
+        <section class="sfa-left">
+
+            <div class="sfa-card sfa-kpi-grid">
+                <div class="sfa-card-kpi">
+                    <div class="sfa-kpi-label">PROCESSED LOGS</div>
+                    <div class="sfa-kpi-value" id="kpi-logs">0</div>
+                </div>
+
+                <div class="sfa-card-kpi">
+                    <div class="sfa-kpi-label">ACTIVE NODES</div>
+                    <div class="sfa-kpi-value" id="kpi-nodes">0</div>
+                </div>
+
+                <div class="sfa-card-status">
+                    <div class="sfa-kpi-label">SYSTEM STATUS</div>
+                    <div class="sfa-status-line" id="kpi-status">
+                        <span class="sfa-dot sfa-dot-ok"></span>
+                        <span>Normal</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sfa-card sfa-card-alerts">
+                <div class="sfa-card-header">
+                    <span>Alerts</span>
+                    <span class="sfa-badge" id="alerts-count">0</span>
+                </div>
+                <div class="sfa-alert-list" id="alerts-list"></div>
+            </div>
+
+            <div class="sfa-card sfa-card-log">
+                <div class="sfa-card-header">Log Stream</div>
+                <div class="sfa-log-list" id="log-stream"></div>
+            </div>
+
+        </section>
+
+        <!-- GRAPH -->
+        <section class="sfa-center">
+            <div class="sfa-graph-wrapper">
+                <!-- ВАЖНО: именно этот id используется в graph.js -->
+                <div id="graphContainer"></div>
+            </div>
+        </section>
+
+    </main>
+</div>
+
+<!-- Tooltip для сервисов -->
+<div id="tooltip" class="sfa-tooltip"></div>
+
+<!-- Cytoscape ядро -->
+<script src="https://unpkg.com/cytoscape/dist/cytoscape.min.js"></script>
+
+<!-- Библиотеки для fcose -->
+<script src="https://unpkg.com/layout-base/layout-base.js"></script>
+<script src="https://unpkg.com/cose-base/cose-base.js"></script>
+
+<!-- fcose layout (регистрируется автоматически) -->
+<script src="https://unpkg.com/cytoscape-fcose/cytoscape-fcose.js"></script>
+
+<!-- Твой код отрисовки графа -->
+<script src="{{ url_for('static', filename='graph.js') }}"></script>
+
+</body>
+</html>

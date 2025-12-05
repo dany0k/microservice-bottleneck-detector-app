@@ -1,0 +1,326 @@
+/* HEADER */
+
+.sfa-header {
+    width: 100%;
+    height: 70px;
+    background: #0f172a;
+    border-bottom: 1px solid #1e293b;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    box-sizing: border-box;
+}
+
+.sfa-header-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.sfa-logo {
+    width: 38px;
+    height: 38px;
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 700;
+    font-size: 18px;
+}
+
+.sfa-title-block {
+    display: flex;
+    flex-direction: column;
+}
+
+.sfa-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: #f1f5f9;
+}
+
+.sfa-subtitle {
+    font-size: 12px;
+    color: #94a3b8;
+}
+
+.sfa-header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.sfa-sim-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.sfa-btn {
+    background: #1e293b;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 14px;
+    color: #e2e8f0;
+    cursor: pointer;
+}
+
+.sfa-btn:hover {
+    background: #334155;
+}
+
+.sfa-btn-play {
+    background: #16a34a;
+}
+
+.sfa-btn-play:hover {
+    background: #15803d;
+}
+
+.sfa-slider-block {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #94a3b8;
+    font-size: 12px;
+}
+
+/* MAIN LAYOUT */
+
+.sfa-main {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    height: calc(100vh - 70px);
+    overflow: hidden;
+}
+
+/* LEFT PANEL */
+
+.sfa-left {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow-y: auto;
+}
+
+.sfa-card {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    padding: 14px;
+}
+
+.sfa-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.sfa-card-kpi {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.sfa-kpi-label {
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #94a3b8;
+}
+
+.sfa-kpi-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: white;
+}
+
+.sfa-card-status {
+    grid-column: 1 / span 2;
+}
+
+.sfa-status-line {
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+}
+
+.sfa-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+}
+
+.sfa-dot-ok {
+    background: #22c55e;
+}
+
+/* Alerts */
+
+.sfa-card-alerts {
+    max-height: 300px;
+    display: flex;
+    flex-direction: column;
+}
+
+.sfa-card-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    color: #f8fafc;
+    font-weight: 500;
+    margin-bottom: 8px;
+}
+
+.sfa-badge {
+    background: #1d4ed8;
+    padding: 2px 8px;
+    border-radius: 999px;
+    color: white;
+    font-size: 11px;
+}
+
+.sfa-alert-list {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.sfa-alert {
+    padding: 10px;
+    border-radius: 10px;
+    border-left: 4px solid;
+    font-size: 13px;
+}
+
+.sfa-alert-critical {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: #ef4444;
+}
+
+.sfa-alert-warning {
+    background: rgba(245, 158, 11, 0.15);
+    border-color: #f59e0b;
+}
+
+.sfa-alert-info {
+    background: rgba(59, 130, 246, 0.15);
+    border-color: #3b82f6;
+}
+
+.sfa-alert-title {
+    font-weight: 600;
+    color: white;
+}
+
+.sfa-alert-meta {
+    margin-top: 4px;
+    font-size: 11px;
+    color: #94a3b8;
+}
+
+/* Log stream */
+
+.sfa-card-log {
+    display: flex;
+    flex-direction: column;
+}
+
+.sfa-log-list {
+    margin-top: 8px;
+    overflow-y: auto;
+    max-height: 260px;
+    font-size: 12px;
+}
+
+.sfa-log-line {
+    display: flex;
+    justify-content: space-between;
+    color: #cbd5e1;
+}
+
+/* CENTER GRAPH */
+
+.sfa-center {
+    position: relative;
+    overflow: hidden;
+}
+
+.sfa-graph-wrapper {
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+#graphContainer {
+    width: 100%;
+    height: 100%;
+}
+
+/* LEGEND */
+
+.sfa-legend-card {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 220px;
+    z-index: 10;
+}
+
+.sfa-legend-list {
+    margin: 0;
+    padding: 8px 0 0;
+    list-style: none;
+}
+
+.sfa-legend-list li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 0;
+}
+
+.sfa-legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+}
+
+.sfa-node-ok { background: #60a5fa; }
+.sfa-node-warn { background: #f59e0b; }
+.sfa-node-critical { background: #ef4444; }
+
+.sfa-legend-size {
+    width: 30px;
+    height: 8px;
+    border-radius: 999px;
+    background: linear-gradient(to right, #60a5fa, #1e40af);
+}
+.sfa-tooltip {
+    position: fixed;
+    background: rgba(15, 23, 42, 0.96);
+    padding: 8px 12px;
+    color: #e2e8f0;
+    border-radius: 6px;
+    border: 1px solid rgba(148, 163, 184, 0.4);
+    font-size: 12px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.1s ease-out;
+    z-index: 99999;
+    max-width: 260px;
+    line-height: 1.35;
+}
+
+.sfa-tooltip.visible {
+    opacity: 1;
+}
+
