@@ -1,14 +1,19 @@
-// ---------- KPI ----------
+// -----------------------------------------------------------
+//                     KPI SECTION
+// -----------------------------------------------------------
 function updateStats() {
     fetch("/api/stats")
         .then(r => r.json())
         .then(s => {
+            // Для дебага: смотрим, что реально приходит с бэка
+            console.log("STATS:", s);
+
+            // PROCESSED LOGS / ACTIVE NODES
             document.getElementById("kpi-logs").textContent = s.total_logs;
             document.getElementById("kpi-nodes").textContent = s.active_nodes;
 
+            // SYSTEM STATUS
             const st = document.getElementById("kpi-status");
-            if (!st) return;
-
             if (s.status === "critical") {
                 st.innerHTML = `<span class="sfa-dot sfa-dot-critical"></span> Critical`;
             } else if (s.status === "warning") {
@@ -16,19 +21,32 @@ function updateStats() {
             } else {
                 st.innerHTML = `<span class="sfa-dot sfa-dot-ok"></span> Normal`;
             }
+
+            // MAX FLOW (новое)
+            const maxFlowEl = document.getElementById("kpi-max-flow");
+            if (maxFlowEl) {
+                const mf = typeof s.max_flow === "number" ? s.max_flow : 0;
+                maxFlowEl.textContent = mf.toFixed(3);
+            }
         })
-        .catch(console.error);
+        .catch(err => {
+            console.error("updateStats error:", err);
+        });
 }
 
-// ---------- GRAPH ----------
+
+// -----------------------------------------------------------
+//                     GRAPH SECTION
+// -----------------------------------------------------------
 let cy = null;
 let firstLayoutDone = false;
 let lastZoom = 1;
-let lastPan = { x: 0, y: 0 };
+let lastPan = {x: 0, y: 0};
 
 function initGraph() {
     cy = cytoscape({
         container: document.getElementById("graphContainer"),
+
         style: [
             {
                 selector: "node",
@@ -47,11 +65,18 @@ function initGraph() {
             },
             {
                 selector: "node[status = 'warning']",
-                style: { "background-color": "#ffcc33" }
+                style: {"background-color": "#ffcc33"}
             },
             {
                 selector: "node[status = 'critical']",
-                style: { "background-color": "#ff4444" }
+                style: {"background-color": "#ff4444"}
+            },
+            {
+                selector: "node[bottleneck_score > 0]",
+                style: {
+                    "border-color": "#ff5555",
+                    "border-width": 4
+                }
             },
             {
                 selector: "edge",
@@ -63,6 +88,15 @@ function initGraph() {
                     "curve-style": "bezier"
                 }
             }
+            // {
+            //     selector: "edge[is_bottleneck]",
+            //     style: {
+            //         "line-color": "#ff4444",
+            //         "target-arrow-color": "#ff4444",
+            //         "width": 4
+            //     }
+            // }
+
         ]
     });
 
@@ -74,27 +108,26 @@ function initGraph() {
     initTooltipHandlers();
 }
 
-// ---------- TOOLTIP ----------
 function initTooltipHandlers() {
     const tooltip = document.getElementById("tooltip");
-    if (!tooltip) {
-        console.warn("Tooltip element #tooltip not found in DOM");
-        return;
-    }
+    if (!tooltip) return;
 
     function hideTooltip() {
         tooltip.classList.remove("visible");
     }
 
-    function showTooltip(node, evt) {
+    function showNodeTooltip(node, evt) {
         const d = node.data();
-        const label = d.label ?? d.id;
+        const avgLatency = d.avg_latency != null
+            ? (typeof d.avg_latency === "number" ? d.avg_latency.toFixed(1) : d.avg_latency)
+            : "-";
 
         tooltip.innerHTML = `
-            <div style="font-weight:600; margin-bottom:4px;">${label}</div>
-            <div>Avg latency: <b>${d.avg_latency?.toFixed?.(1) ?? d.avg_latency ?? "-"}</b> ms</div>
+            <div style="font-weight:600;margin-bottom:4px;">${d.label}</div>
+            <div>Avg latency: <b>${avgLatency}</b> ms</div>
             <div>Load: <b>${d.load ?? "-"}</b></div>
             <div>Status: <b>${d.status ?? "unknown"}</b></div>
+            <div>Bottleneck score: <b>${d.bottleneck_score ?? 0}</b></div>
         `;
 
         const pos = evt.renderedPosition;
@@ -102,52 +135,76 @@ function initTooltipHandlers() {
 
         tooltip.style.left = rect.left + pos.x + 12 + "px";
         tooltip.style.top = rect.top + pos.y + 12 + "px";
-
         tooltip.classList.add("visible");
     }
 
-    cy.on("mouseover", "node", (evt) => showTooltip(evt.target, evt));
-    cy.on("mousemove", "node", (evt) => showTooltip(evt.target, evt));
+    function showEdgeTooltip(edge, evt) {
+        const e = edge.data();
+
+        const avgLatency = e.avg_latency != null
+            ? (typeof e.avg_latency === "number" ? e.avg_latency.toFixed(1) : e.avg_latency)
+            : "-";
+
+        tooltip.innerHTML = `
+            <div style="font-weight:600;margin-bottom:4px;">${e.source} → ${e.target}</div>
+            <div>Avg latency: <b>${avgLatency}</b> ms</div>
+            <div>Capacity: <b>${e.capacity ?? "-"}</b></div>
+            <div>Bottleneck: <b>${e.is_bottleneck ? "YES" : "no"}</b></div>
+        `;
+
+        const pos = evt.renderedPosition;
+        const rect = cy.container().getBoundingClientRect();
+
+        tooltip.style.left = rect.left + pos.x + 12 + "px";
+        tooltip.style.top = rect.top + pos.y + 12 + "px";
+        tooltip.classList.add("visible");
+    }
+
+    cy.on("mouseover", "node", evt => showNodeTooltip(evt.target, evt));
+    cy.on("mousemove", "node", evt => showNodeTooltip(evt.target, evt));
     cy.on("mouseout", "node", hideTooltip);
+
+    cy.on("mouseover", "edge", evt => showEdgeTooltip(evt.target, evt));
+    cy.on("mouseout", "edge", hideTooltip);
+
     cy.on("zoom pan", hideTooltip);
 }
 
-// ---------- GRAPH UPDATE ----------
 function updateGraph(graphData) {
     if (!cy) return;
 
     const nodes = graphData.nodes || [];
     const edges = graphData.edges || [];
 
-    // словари для быстрого поиска
     const nodeMap = {};
     nodes.forEach(n => nodeMap[n.id] = n);
 
     const edgeMap = {};
     edges.forEach(e => edgeMap[e.id] = e);
 
-    // обновляем существующие ноды
+    const addedNodes = [];
+
     cy.nodes().forEach(n => {
         const id = n.id();
         const data = nodeMap[id];
+
         if (data) {
             n.data(data);
             delete nodeMap[id];
         } else {
-            // нода исчезла из графа
             n.remove();
         }
     });
 
-    // добавляем новые ноды (позицию не трогаем — пусть layout один раз расставит)
-    Object.values(nodeMap).forEach(d => {
-        cy.add({ group: "nodes", data: d });
+    Object.values(nodeMap).forEach(data => {
+        const newNode = cy.add({group: "nodes", data});
+        addedNodes.push(newNode);
     });
 
-    // аналогично для рёбер
     cy.edges().forEach(e => {
         const id = e.id();
         const data = edgeMap[id];
+
         if (data) {
             e.data(data);
             delete edgeMap[id];
@@ -156,11 +213,10 @@ function updateGraph(graphData) {
         }
     });
 
-    Object.values(edgeMap).forEach(d => {
-        cy.add({ group: "edges", data: d });
+    Object.values(edgeMap).forEach(data => {
+        cy.add({group: "edges", data});
     });
 
-    // первый раз запускаем layout, дальше не трогаем позиции
     if (!firstLayoutDone) {
         cy.layout({
             name: "fcose",
@@ -170,22 +226,39 @@ function updateGraph(graphData) {
             animationDuration: 600,
             fit: true
         }).run();
+
         firstLayoutDone = true;
         lastZoom = cy.zoom();
         lastPan = cy.pan();
+    } else if (addedNodes.length > 0) {
+        // перераскладываем весь граф, но не трогаем fit (не ломаем масштаб)
+        cy.layout({
+            name: "fcose",
+            quality: "default",
+            randomize: false,
+            animate: true,
+            animationDuration: 600,
+            fit: false
+        }).run();
+
+        // возвращаем пользователю его zoom/pan
+        cy.zoom(lastZoom);
+        cy.pan(lastPan);
     } else {
-        // возвращаем зум/пан пользователя
+        // если новых нод нет — просто возвращаем zoom/pan
         cy.zoom(lastZoom);
         cy.pan(lastPan);
     }
 }
 
-// ---------- LOGS & ALERTS ----------
+
 function fetchGraph() {
     fetch("/api/graph")
         .then(res => res.json())
         .then(updateGraph)
-        .catch(console.error);
+        .catch(err => {
+            console.error("fetchGraph error:", err);
+        });
 }
 
 function fetchLogs() {
@@ -194,17 +267,20 @@ function fetchLogs() {
         .then(data => {
             const el = document.getElementById("log-stream");
             if (!el) return;
+
             (data.logs || []).forEach(line => {
                 const div = document.createElement("div");
                 div.textContent = line;
                 el.appendChild(div);
             });
-            // ограничим высоту/количество чтобы не раздувать DOM
+
             while (el.childNodes.length > 100) {
                 el.removeChild(el.firstChild);
             }
         })
-        .catch(console.error);
+        .catch(err => {
+            console.error("fetchLogs error:", err);
+        });
 }
 
 function fetchAlerts() {
@@ -228,13 +304,14 @@ function fetchAlerts() {
                 `)
                 .join("");
         })
-        .catch(console.error);
+        .catch(err => {
+            console.error("fetchAlerts error:", err);
+        });
 }
 
-// ---------- INIT ----------
-initGraph();
 
+initGraph();
 setInterval(fetchGraph, 1500);
 setInterval(fetchLogs, 1000);
-setInterval(fetchAlerts, 1000);
+// setInterval(fetchAlerts, 1000);
 setInterval(updateStats, 1000);
