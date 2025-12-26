@@ -28,35 +28,61 @@ class AlertEngine:
 
         return warn, crit
 
+    def _latency_rps_slope(self, edge) -> float:
+        samples = list(edge.samples)
+        if len(samples) < 5:
+            return 0.0
+
+        rps_vals = [r for _, r, _ in samples]
+        lat_vals = [l for _, _, l in samples]
+
+        if len(set(rps_vals)) < 2:
+            return 0.0
+
+        mean_rps = statistics.mean(rps_vals)
+        mean_lat = statistics.mean(lat_vals)
+
+        num = sum(
+            (r - mean_rps) * (l - mean_lat)
+            for r, l in zip(rps_vals, lat_vals)
+        )
+        den = sum((r - mean_rps) ** 2 for r in rps_vals)
+
+        return num / den if den != 0 else 0.0
+
     def process_edge(self, src: str, dst: str, edge):
-        warn, crit = self._compute_adaptive_thresholds()
+        slope = self._latency_rps_slope(edge)
 
-        status = None
+        RPS_MIN = 5
+        SLOPE_CRIT = 2.0  # ms latency / 1 rps
+        STABILITY = 3  # последних точек
 
-        if edge.avg_latency >= crit:
-            status = "critical"
-        elif edge.avg_latency >= warn:
-            status = "warning"
-
-        if edge.trend > 0 and status != "critical":
-            if edge.trend > (crit * 0.1):
-                status = "warning"
-
-        if not status:
+        recent = list(edge.samples)[-STABILITY:]
+        if len(recent) < STABILITY:
             return
 
-        self._alerts.append({
-            "type": status,
-            "title": f"Latency {status.upper()}",
-            "message": f"{src} → {dst} "
-                       f"avg={edge.avg_latency:.1f} ms "
-                       f"(warn={warn:.1f}, crit={crit:.1f})",
-            "route": f"{src}/{dst}",
-            "meta": ""
-        })
+        avg_rps = sum(r for _, r, _ in recent) / STABILITY
+        avg_lat = sum(l for _, _, l in recent) / STABILITY
 
-        if len(self._alerts) > 200:
-            self._alerts.pop(0)
+        if (
+                slope > SLOPE_CRIT
+                and avg_rps > RPS_MIN
+                and avg_lat > self._compute_adaptive_thresholds()[0]
+        ):
+            self._gs.bottleneck_edges.add((src, dst))
+
+            self._alerts.append({
+                "type": "critical",
+                "title": "Bottleneck detected",
+                "message": (
+                    f"{src} → {dst}: "
+                    f"dLatency/dRPS={slope:.2f}, "
+                    f"rps={avg_rps:.1f}, "
+                    f"lat={avg_lat:.1f}"
+                ),
+                "route": f"{src}/{dst}",
+                "meta": ""
+            })
 
     def handle_log(self, src: str, dst: str):
         edge = self._gs.edges.get((src, dst))

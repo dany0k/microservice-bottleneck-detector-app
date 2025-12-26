@@ -1,6 +1,7 @@
 # app/graph_state.py
-from typing import Dict, Tuple
+import time
 from collections import deque
+from typing import Dict, Tuple
 
 from .models import NodeMetrics, EdgeMetrics
 
@@ -31,7 +32,13 @@ class GraphState:
         if key not in self.edges:
             self.edges[key] = EdgeMetrics()
 
-        self.edges[key].update(latency)
+        edge = self.edges[key]
+
+        now = int(time.time())
+        recent = [t for t, _, _ in edge.samples if t == now]
+        rps = len(recent) + 1
+
+        edge.update(latency, rps)
 
     def _compute_incoming_edges(self):
         incoming = {name: [] for name in self.nodes}
@@ -98,3 +105,37 @@ class GraphState:
 
     def active_nodes_count(self) -> int:
         return len(self.nodes)
+
+    def export_edge_timeseries(self):
+        """
+        Возвращает данные для 3D-графиков:
+        {
+            (src, dst): {
+                "t": [...],
+                "latency": [...],
+                "rps": [...]
+            }
+        }
+        """
+        out = {}
+
+        for (src, dst), edge in self.edges.items():
+            if not edge.samples:
+                continue
+
+            t = []
+            latency = []
+            rps = []
+
+            for r, ts, lat in edge.samples:
+                t.append(ts)
+                latency.append(lat)
+                rps.append(r)
+
+            out[(src, dst)] = {
+                "t": t,
+                "latency": latency,
+                "rps": rps,
+            }
+
+        return out

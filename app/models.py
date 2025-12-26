@@ -1,7 +1,9 @@
-from dataclasses import dataclass, field
-import statistics
 from typing import List, Optional
-
+from collections import deque
+import time
+import statistics
+from dataclasses import dataclass, field
+from typing import List
 
 @dataclass
 class NodeMetrics:
@@ -80,12 +82,13 @@ class NodeMetrics:
     def status(self, value: str) -> None:
         self._forced_status = value
 
-
 @dataclass
 class EdgeMetrics:
     latencies: List[float] = field(default_factory=list)
     last_latency: float = 0.0
     count: int = 0
+
+    samples: deque = field(default_factory=lambda: deque(maxlen=50))
 
     @property
     def avg_latency(self) -> float:
@@ -97,9 +100,16 @@ class EdgeMetrics:
             return 0.0
         return self.latencies[-1] - self.latencies[-3]
 
-    def update(self, latency: float) -> None:
+    def update(self, latency: float, rps: int):
+        now = int(time.time())
+
         self.last_latency = latency
         self.latencies.append(latency)
         self.count += 1
+
         if len(self.latencies) > 200:
             self.latencies.pop(0)
+
+        # сохраняем точку
+        self.samples.append((now, rps, latency))
+
