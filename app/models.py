@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Deque, Tuple
 from collections import deque
 import time
 import statistics
@@ -84,32 +84,22 @@ class NodeMetrics:
 
 @dataclass
 class EdgeMetrics:
-    latencies: List[float] = field(default_factory=list)
-    last_latency: float = 0.0
-    count: int = 0
+    samples: Deque[Tuple[float, float, float]] = field(
+        default_factory=lambda: deque(maxlen=1000)
+    )
 
-    samples: deque = field(default_factory=lambda: deque(maxlen=50))
+    def update(self, timestamp: float, rps: float, latency: float):
+        self.samples.append((timestamp, rps, latency))
 
     @property
     def avg_latency(self) -> float:
-        return statistics.mean(self.latencies) if self.latencies else 0.0
+        if not self.samples:
+            return 0.0
+        return statistics.mean(lat for _, _, lat in self.samples)
 
     @property
-    def trend(self) -> float:
-        if len(self.latencies) < 3:
+    def avg_rps(self) -> float:
+        if not self.samples:
             return 0.0
-        return self.latencies[-1] - self.latencies[-3]
-
-    def update(self, latency: float, rps: int):
-        now = int(time.time())
-
-        self.last_latency = latency
-        self.latencies.append(latency)
-        self.count += 1
-
-        if len(self.latencies) > 200:
-            self.latencies.pop(0)
-
-        # сохраняем точку
-        self.samples.append((now, rps, latency))
+        return statistics.mean(rps for _, rps, _ in self.samples)
 
